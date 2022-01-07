@@ -1,0 +1,30 @@
+http:
+  routers:
+    prometheus-local:
+      rule: "Host(`prometheus.example.local`)"
+      entryPoints:
+        - https
+      middlewares:
+        - error-pages-middleware@docker
+      service: prometheus-svc
+      priority: 300
+      tls:
+
+    prometheus-private:
+      rule: "Host(`prometheus.example.org`)" # will only work with cloudflare Full SSL (not Strict)
+      entryPoints:
+        - https
+      middlewares:
+        - chain-authelia
+        - error-pages-middleware@docker
+      service: prometheus-svc
+      priority: 200
+      tls:
+        certResolver: cloudflare-dns-tk
+
+  services:
+    prometheus-svc:
+      loadBalancer:
+        # passHostHeader: true
+        servers:
+          - url: "http://10.10.22.143:9090" # or whatever your external host's IP:port is

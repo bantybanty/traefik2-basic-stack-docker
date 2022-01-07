@@ -1,0 +1,74 @@
+## case you have multiple DOMAIN with multiple certResolver
+## i am not using it
+certificatesResolvers:
+  cloudflare-dns-tk:
+    acme:
+      email: example@example.com
+      storage: acme.json
+      # caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      keyType: EC384
+      dnsChallenge:
+        provider: acme-dns
+        disablePropagationCheck: true
+        delayBeforeCheck: 90
+        resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"
+  letsencrypt-dns-staging:
+    acme:
+      email: example@example.com
+      storage: acme-le.json
+      caServer: https://acme-staging-v02.api.letsencrypt.org/directory
+      keyType: EC384
+      dnsChallenge:
+        provider: acme-dns
+        disablePropagationCheck: true
+        delayBeforeCheck: 90
+        resolvers:
+          - "1.1.1.1:53"
+          - "1.0.0.1:53"
+#  duckdns:
+#    acme:
+#      email: example@example.com
+#      storage: acme.json
+#      keyType: EC384
+#      dnsChallenge:
+#        provider: duckdns
+#        disablePropagationCheck: true
+#        resolvers:
+#          - "8.8.8.8:53"
+#          - "8.8.4.4:53"
+
+#  zerossl:
+#    acme:
+#      email: example@example.com
+#      storage: acme.json
+#      caServer: https://acme.zerossl.com/v2/DV90
+#      keyType: EC384
+#      eab:
+#        kid: ep4EZ8laHTcpumwupIdEhA
+#        hmacEncoded: ECB-2ZXxGsk2zbafj0hcyJAdLUEG75E_dLbCvP8Z-6phMTRYnMQjEyty1nbyFQHIY_f3I0EAjizQJXw0-ZMJaA
+#      dnsChallenge:
+#        provider: cloudflare
+#        disablePropagationCheck: true
+#        resolvers:
+#          - "1.1.1.1:53"
+#          - "1.0.0.1:53"
+
+#  letsencrypt-legacy:
+#    acme:
+#      email: example@example.com
+#      storage: acme.json
+#      keyType: EC384
+#      preferredChain: 'DST Root CA X3'
+#      httpChallenge:
+#        entryPoint: web
+
+#  buypass:
+#    acme:
+#      email: example@example.com
+#      storage: acme.json
+#      caServer: https://api.buypass.com/acme/directory
+#      keyType: EC256
+#      httpChallenge:
+#        entryPoint: web

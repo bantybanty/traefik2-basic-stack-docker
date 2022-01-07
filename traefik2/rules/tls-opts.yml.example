@@ -1,0 +1,16 @@
+tls:
+  options:
+    tls-opts:
+        minVersion: VersionTLS13
+        cipherSuites:
+          - TLS_AES_128_GCM_SHA256 ## TLS 1.3
+          - TLS_AES_256_GCM_SHA384 ## TLS 1.3
+          - TLS_CHACHA20_POLY1305_SHA256 ## TLS 1.3
+        preferServerCipherSuites: true
+        curvePreferences:
+          - CurveP521
+          - CurveP384
+        alpnProtocols:
+          - http/1.1
+          - h2
+        sniStrict: true

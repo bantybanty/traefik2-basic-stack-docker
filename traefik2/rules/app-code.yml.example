@@ -1,0 +1,27 @@
+http:
+  routers:
+    code-local:
+      rule: "Host(`code.example.local`)"
+      entryPoints:
+        - https
+      service: code-svc
+      priority: 300
+      tls:
+
+    code-private:
+      rule: "Host(`code.example.org`)" # will only work with cloudflare Full SSL (not Strict)
+      entryPoints:
+        - https
+      middlewares:
+        - chain-authelia
+      service: code-svc
+      priority: 200
+      tls:
+        certResolver: cloudflare-dns-tk
+
+  services:
+    code-svc:
+      loadBalancer:
+        # passHostHeader: true
+        servers:
+          - url: "http://10.10.22.169:8000" # or whatever your external host's IP:port is

@@ -1,0 +1,30 @@
+http:
+  routers:
+    jellyfin-local:
+      rule: "Host(`jellyfin.example.local`)"
+      entryPoints:
+        - https
+      middlewares:
+        - error-pages-middleware@docker
+      service: jellyfin-svc
+      priority: 300
+      tls:
+
+    jellyfin-private:
+      rule: "Host(`jellyfin.example.org`)" # will only work with cloudflare Full SSL (not Strict)
+      entryPoints:
+        - https
+      middlewares:
+        - chain-authelia
+        - error-pages-middleware@docker
+      service: jellyfin-svc
+      priority: 200
+      tls:
+        certResolver: cloudflare-dns-tk
+
+  services:
+    jellyfin-svc:
+      loadBalancer:
+        # passHostHeader: true
+        servers:
+          - url: "http://10.10.0.218" # or whatever your external host's IP:port is

@@ -1,0 +1,56 @@
+# This is the network config written by 'subiquity'
+network:
+  version: 2
+  #  renderer: networkd #NetworkManager
+  ethernets:
+    ens160:
+      dhcp4: no
+      dhcp4-overrides:
+        route-metric: 100
+      dhcp6: yes
+      dhcp6-overrides:
+        route-metric: 100
+      mtu: 9000
+      addresses:
+        - 10.10.0.51/24
+      #      gateway4: 10.10.0.1 ## i am using metric ## gateway4 sets 0 or 1 default route
+      nameservers:
+        addresses:
+          - 10.10.0.21
+          - 10.10.0.22
+        search:
+          - dhnlab.local
+      routes:
+        - to: 0.0.0.0/0
+          via: 10.10.0.1
+          metric: 100
+        - to: 10.10.0.0/24
+          via: 10.10.0.1
+          metric: 100
+  vlans:
+    ens160.22:
+      id: 22
+      link: ens160
+      mtu: 9000
+      dhcp4: no
+      dhcp4-overrides:
+        route-metric: 200
+      dhcp6: yes
+      dhcp6-overrides:
+        route-metric: 200
+      addresses:
+        - 10.10.22.51/24
+      #      gateway4: 10.10.22.1
+      nameservers:
+        addresses:
+          - 10.10.0.21
+          - 10.10.0.22
+        search:
+          - dhnlab.local
+      routes:
+        - to: 0.0.0.0/0
+          via: 10.10.22.1
+          metric: 200
+        - to: 10.10.22.0/24
+          via: 10.10.22.1
+          metric: 200

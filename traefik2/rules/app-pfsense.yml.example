@@ -1,0 +1,16 @@
+http:
+  routers:
+    pfsense-private:
+      rule: "Host(`pfsense.dhnlab.org`)"
+      entryPoints:
+        - https
+      middlewares:
+        - chain-no-auth
+      service: pfsense-svc
+      tls:
+        certResolver: cloudflare-dns-tk
+  services:
+    pfsense-svc:
+      loadBalancer:
+        servers:
+          - url: "http://10.10.0.1:80"  # or whatever your external host's IP:port is

@@ -1,0 +1,43 @@
+http:
+  routers:
+    owncloud-local:
+      rule: "Host(`owncloud.example.local`)"
+      entryPoints:
+        - https
+      middlewares:
+        - chain-owncloud-local
+        - error-pages-middleware@docker
+      service: owncloud-svc
+      priority: 300
+      tls:
+
+    owncloud-private:
+      rule: "Host(`owncloud.example.org`)" # will only work with cloudflare Full SSL (not Strict)
+      entryPoints:
+        - https
+      middlewares:
+        - chain-owncloud-private
+        - error-pages-middleware@docker
+      service: owncloud-svc
+      priority: 200
+      tls:
+        certResolver: cloudflare-dns-tk
+
+    owncloud-public:
+      rule: "Host(`owncloud.example.com`)" # will only work with cloudflare Full SSL (not Strict)
+      entryPoints:
+        - https
+      middlewares:
+        - chain-owncloud-public
+        - error-pages-middleware@docker
+      service: owncloud-svc
+      priority: 100
+      tls:
+        certResolver: cloudflare-dns-tk
+
+  services:
+    owncloud-svc:
+      loadBalancer:
+        # passHostHeader: true
+        servers:
+          - url: "http://10.10.22.220:8080" # or whatever your external host's IP:port is

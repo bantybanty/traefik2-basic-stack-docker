@@ -1,0 +1,297 @@
+version: "3.9"
+networks:
+  socket_proxy:
+    name: socket_proxy
+    external: true
+  docker.22: ### Change this accounding to your network
+    name: docker.22
+    external: true
+########################### SECRETS ################################
+### I am not using Docker Secrets
+### i am using .env file to inject data
+# secrets:
+#   htpasswd:
+#     file: $DOCKERDIR/secrets/htpasswd
+#   cloudflare_email:
+#     file: $DOCKERDIR/secrets/cloudflare_email
+#   cloudflare_api_key:
+#     file: $DOCKERDIR/secrets/cloudflare_api_key
+#   cloudflare_api_token:
+#     file: $DOCKERDIR/secrets/cloudflare_api_token
+#   authelia_jwt_secret:
+#     file: $DOCKERDIR/secrets/authelia_jwt_secret
+#   authelia_session_secret:
+#     file: $DOCKERDIR/secrets/authelia_session_secret
+#   authelia_storage_mysql_password:
+#     file: $DOCKERDIR/secrets/authelia_storage_mysql_password
+#   authelia_notifier_smtp_password:
+#     file: $DOCKERDIR/secrets/authelia_notifier_smtp_password
+#   authelia_duo_api_secret_key:
+#     file: $DOCKERDIR/secrets/authelia_duo_api_secret_key
+#   oauth_secret:
+#     file: $DOCKERDIR/secrets/oauth_secret
+#   google_client_secret:
+#     file: $DOCKERDIR/secrets/google_client_secret
+#   google_client_id:
+#     file: $DOCKERDIR/secrets/google_client_id
+#   my_email:
+#     file: $DOCKERDIR/secrets/my_email
+#   plex_claim:
+#     file: $DOCKERDIR/secrets/plex_claim
+#   guac_db_name:
+#     file: $DOCKERDIR/secrets/guac_db_name
+#   guac_mysql_user:
+#     file: $DOCKERDIR/secrets/guac_mysql_user
+#   guac_mysql_password:
+#     file: $DOCKERDIR/secrets/guac_mysql_password
+#   traefik_pilot_token:
+#     file: $DOCKERDIR/secrets/traefik_pilot_token
+#   mysql_root_password:
+#     file: $DOCKERDIR/secrets/mysql_root_password
+
+########################### SERVICES   ##########################################
+services:
+  ############################# FRONTENDS  ########################################
+  # Traefik 2 - Reverse Proxy
+  # Touch (create empty files) traefik.log and acme/acme.json. Set acme.json permissions to 600.
+  # touch $DOCKERDIR/traefik2/acme/acme.json
+  # touch $DOCKERDIR/traefik2/acme/acme-dns
+  # chmod 600 $DOCKERDIR/traefik2/acme/acme.json
+  # touch $DOCKERDIR/traefik2/traefik.log
+  # touch $DOCKERDIR/traefik2/access.log
+  traefik:
+    image: traefik:2.5 # brie v2.5.x livarot v2.4.x # picodon v2.3.x
+    container_name: traefik
+    restart: always
+    # profiles:
+    # - core
+    command: # CLI arguments
+      - --global.checkNewVersion=false
+      - --global.sendAnonymousUsage=false
+      - --entryPoints.http.address=:80
+      - --entryPoints.https.address=:443
+      - --entryPoints.traefik.address=:8080 # Local
+      # - --entryPoints.openssh.address=:2222 # openssh
+      - --entryPoints.metrics.address=:8082
+      - --entryPoints.ping.address=:8081
+      # - --entryPoints.dns.address=:53/tcp       # DNS
+      # - --entryPoints.dnsudp.address=:53/udp    # DNS
+      # - --entryPoints.dnsovertls.address=:853   # DNS
+      ## Ended up with Active diractory with dns(master zone) and root certificate authority
+      ## later added Bind server as slave zone server
+      # - --entryPoints.smtp.address=:25          # Email
+      # - --entryPoints.smtp-ssl.address=:465     # Email
+      # - --entryPoints.imap-ssl.address=:993     # Email
+      # - --entryPoints.sieve.address=:4190       # Email
+      # Allow these IPs to set the X-Forwarded-* headers - Cloudflare IPs: https://www.cloudflare.com/ips/
+      - --entrypoints.https.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22
+      - --api=true
+      # - --api.insecure=true
+      - --api.dashboard=true
+      - --ping=true
+      # - --pilot.token=$TRAEFIK_PILOT_TOKEN
+      # - --serversTransport.insecureSkipVerify=true
+      - --log=true
+      # - --log.filePath=/traefik.log
+      - --log.level=DEBUG # (Default: error) DEBUG, INFO, WARN, ERROR, FATAL, PANIC
+      - --accessLog=true
+      - --accessLog.filePath=/access.log
+      - --accessLog.bufferingSize=100 # Configuring a buffer of 100 lines
+      - --accessLog.filters.statusCodes=200,300-302,400-499
+      - --accessLog.filters.retryAttempts=true
+      - --accessLog.filters.minDuration=10ms
+      - --metrics.prometheus=true
+      - --metrics.prometheus.addEntryPointsLabels=true
+      - --metrics.prometheus.addrouterslabels=true
+      - --metrics.prometheus.addServicesLabels=true
+      - --metrics.prometheus.entryPoint=metrics
+      # - --metrics.prometheus.manualrouting=true
+      - --providers.docker=true
+      # - --providers.docker.endpoint=unix:///var/run/docker.sock # Use Docker Socket Proxy instead for improved security
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      # Automatically set Host rule for services
+      - --providers.docker.defaultrule=Host(`{{ index .Labels "com.docker.compose.service" }}.$DOMAINNAME`) # .local
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.network=docker.22
+      - --providers.docker.swarmMode=false
+      - --providers.docker.watch=true
+      - --providers.file.directory=/rules # Load dynamic configuration from one or more .toml or .yml files in a directory
+      - --providers.file.watch=true # Only works on top level files in the rules folder
+      ## default middileware could be anything but mostly authentication
+      # - --entrypoints.https.http.middlewares=chain-oauth@file
+      ## for Custom Tls option Settings
+      # - --entrypoints.https.http.tls.options=tls-opts@file
+      ## Add cloudflare-dns-tk as default certresolver for all services. Also enables TLS and no need to specify on individual services
+      ### Incase mutiple certresolver
+      ##### traefik error: unable to initialize certificates resolver "step-ca", all the acme resolvers must use the same email
+      - --entrypoints.https.http.tls.certresolver=cloudflare-dns-tk
+      ### For my setup  DOMAINNAME=example.local, DOMAINNAME0=example.com, DOMAINNAME1=example.org
+      - --entrypoints.https.http.tls.domains[0].main=$DOMAINNAME0 # Pulls main cert for 1st domain
+      - --entrypoints.https.http.tls.domains[0].sans=*.$DOMAINNAME0 # Pulls wildcard cert for 1st domain
+      - --entrypoints.https.http.tls.domains[1].main=$DOMAINNAME1 # Pulls main cert for 2nd domain
+      - --entrypoints.https.http.tls.domains[1].sans=*.$DOMAINNAME1 # Pulls wildcard cert for 2nd domain
+      # - --entrypoints.https.http.tls.domains[3].main=$DOMAINNAME # Pulls main cert for 3rd domain
+      # - --entrypoints.https.http.tls.domains[3].sans=*.$DOMAINNAME # Pulls wildcard cert for 3rd domain
+      # - --certificatesResolvers.cloudflare-dns-tk.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory # LetsEncrypt Staging Server - uncomment when testing
+      - --certificatesResolvers.cloudflare-dns-tk.acme.email=$CLOUDFLARE_EMAIL
+      - --certificatesResolvers.cloudflare-dns-tk.acme.storage=/acme.json
+      - --certificatesResolvers.cloudflare-dns-tk.acme.keyType=EC384
+      ## The Reason i am using acme-dns is because i am using TLD Domains
+      ## “error”: "You cannot use this API for domains (top-level domains) with .cf, .ga, .gq, .ml or .tk TLDs. DNS settings for this domain, please Use the Cloudflare dashboard."
+      - --certificatesResolvers.cloudflare-dns-tk.acme.dnsChallenge.provider=acme-dns
+      - --certificatesResolvers.cloudflare-dns-tk.acme.dnsChallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      - --certificatesResolvers.cloudflare-dns-tk.acme.dnsChallenge.disablePropagationCheck=true
+      - --certificatesResolvers.cloudflare-dns-tk.acme.dnsChallenge.delayBeforeCheck=90 # To delay DNS check and reduce LE hitrate
+      ### found a better option that is step-ca for shot live ssl certs with acme/letsencrypt protocal for you local domain
+      ### https://smallstep.com/docs/step-ca ## https://github.com/smallstep/certificates
+      ### In case if you dont want to host it you can use there online hosted step-ca server for you any donain eg. "local"
+      ### sighup https://smallstep.com/app
+    networks:
+      docker.22:
+        ipv4_address: 10.10.22.252 # You can specify a static IP
+      socket_proxy:
+        ipv4_address: 192.168.91.252
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+      interval: 5s
+      retries: 3
+    ports:
+      - "80:80" # Router Bind
+      - "443:443" # Router Bind
+      - "8080:8080" # Local Bind
+      - "2222:2222" # OpenSSH
+      # - "10.10.22.252:53:53/tcp"  # DNS
+      # - "10.10.22.252:53:53/udp"  # DNS
+      # - "10.10.22.252:853:853"    # DNS
+      # - '10.10.22.252:25:25' # Email
+      # - '10.10.22.252:465:465' # Email
+      # - '10.10.22.252:993:993' # Email
+      # - '10.10.22.252:4190:4190' # Email
+    volumes:
+      - $DOCKERDIR/appdata/traefik2/rules:/rules # file provider directory for rules
+      - $DOCKERDIR/appdata/traefik2/certs:/certs # file provider directory for wild certs for local domain
+      # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
+      - $DOCKERDIR/appdata/traefik2/acme/acme.json:/acme.json # cert location - you must touch this file and change permissions to 600
+      # - $DOCKERDIR/appdata/traefik2/acme/acme-le.json:/acme-le.json # 2nd location fir 2nd cert-resolver
+      - $DOCKERDIR/appdata/traefik2/acme/acme-dns:/acme-dns # acme-dns https api
+      - $DOCKERDIR/appdata/traefik2/access.log:/access.log # for fail2ban - make sure to touch file before starting container
+      - $DOCKERDIR/appdata/traefik2/traefik.log:/traefik.log # for debug
+      - /etc/localtime:/etc/localtime:ro
+    environment:
+      #- CF_API_EMAIL_FILE=/run/secrets/cloudflare_email
+      #- CF_API_KEY_FILE=/run/secrets/cloudflare_api_key
+      # - HTPASSWD_FILE=/run/secrets/htpasswd # HTPASSWD_FILE can be whatever as it is not used/called anywhere.
+      - ACME_DNS_API_BASE=https://auth.acme-dns.io
+      - ACME_DNS_STORAGE_PATH=/acme-dns
+    # secrets:
+    #   - cloudflare_email
+    #   - cloudflare_api_key
+    #   - htpasswd
+    labels:
+      - "autoheal=true"
+      - "traefik.enable=true"
+      # HTTP-to-HTTPS Redirect
+      - "traefik.http.routers.http-catchall.entrypoints=http"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      # HTTP Routers Local
+      - "traefik.http.routers.traefik-local.entrypoints=https"
+      - "traefik.http.routers.traefik-local.rule=Host(`traefik.$DOMAINNAME`)"
+      - "traefik.http.routers.traefik-local.priority=300"
+      # HTTP Routers Private
+      - "traefik.http.routers.traefik-private.entrypoints=https"
+      - "traefik.http.routers.traefik-private.rule=Host(`traefik.$DOMAINNAME0`)"
+      - "traefik.http.routers.traefik-private.priority=200"
+      ## Services - API
+      - "traefik.http.routers.traefik-local.service=api@internal"
+      - "traefik.http.routers.traefik-private.service=api@internal"
+      - "traefik.http.services.api@internal.loadbalancer.server.port=80"
+      - "traefik.http.services.api@internal.loadbalancer.server.port=8080"
+      ## Middlewares
+      - "traefik.http.routers.traefik-local.middlewares=error-pages-middleware@docker"
+      # - 'traefik.http.routers.traefik-private.middlewares=chain-oauth@file' # Google OAuth
+      - "traefik.http.routers.traefik-private.middlewares=error-pages-middleware@docker,chain-authelia@file"
+      ##Healthcheck/ping
+      - "traefik.http.routers.ping.rule=Host(`traefik.$DOMAINNAME0`) && Path(`/ping`)"
+      - "traefik.http.routers.ping.tls=true"
+      - "traefik.http.routers.ping.service=ping@internal"
+
+  # Traefik - Custom Error Pages
+  # ghost   l7-light  l7-dark   shuffle   noise   hacker-terminal cats
+  ## Some Apps or container do not support this, so its trail and error!!!
+  error-pages:
+    image: tarampampam/error-pages:2.2.0
+    container_name: error-pages
+    restart: unless-stopped
+    environment:
+      TEMPLATE_NAME: shuffle
+    networks:
+      docker.22:
+        ipv4_address: 10.10.22.251
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      traefik.enable: "true"
+      # traefik.docker.network: traefik-public
+      # use as "fallback" for any non-registered services (with priority below normal)
+      traefik.http.routers.error-pages-router.rule: HostRegexp(`{host:.+}`)
+      traefik.http.routers.error-pages-router.priority: 10
+      # should say that all of your services work on https
+      traefik.http.routers.error-pages-router.tls: "true"
+      traefik.http.routers.error-pages-router.entrypoints: https
+      traefik.http.routers.error-pages-router.middlewares: error-pages-middleware@docker
+      traefik.http.services.error-pages-service.loadbalancer.server.port: 8080
+      # "errors" middleware settings
+      traefik.http.middlewares.error-pages-middleware.errors.status: 400-599
+      traefik.http.middlewares.error-pages-middleware.errors.service: error-pages-service@docker
+      traefik.http.middlewares.error-pages-middleware.errors.query: /{status}.html
+
+  ################################################ BACKEND
+  ### Traefik Certs Dumper - Extract LetsEncrypt Certificates - Traefik2 Compatible
+  # certdumper:
+  #   image: humenius/traefik-certs-dumper:latest
+  #   container_name: traefik_certdumper
+  #   restart: unless-stopped
+  #   network_mode: none
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   # command: --restart-containers container1,container2,container3
+  #   volumes:
+  #     - $DOCKERDIR/appdata/traefik2/acme:/traefik:ro
+  #     - $DOCKERDIR/shared/certs:/output:rw
+  #     # - /var/run/docker.sock:/var/run/docker.sock:ro # Only needed if restarting containers (use Docker Socket Proxy instead)
+  #   environment:
+  #     DOMAIN: $DOMAINNAME,$DOMAINNAME0,$DOMAINNAME1
+
+  #### Cloudflare-Companion - Automatic CNAME DNS Creation
+  # cf-companion:
+  #   container_name: cf-companion
+  #   image: tiredofit/traefik-cloudflare-companion:latest
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   restart: always
+  #   networks:
+  #     - socket_proxy
+  #   environment:
+  #     - TIMEZONE=$TZ
+  #     - TRAEFIK_VERSION=2
+  #     #- CF_EMAIL=$CLOUDFLARE_EMAIL
+  #     - CF_TOKEN=$CLOUDFLARE_API_TOKEN
+  #     - TARGET_DOMAIN=$DOMAINNAME0
+  #     - DOMAIN1=$DOMAINNAME0
+  #     - DOMAIN1_ZONE_ID=$CLOUDFLARE_ZONEID # Copy from Cloudflare Overview page
+  #     - DOMAIN1_PROXIED=TRUE
+  #     - DOCKER_HOST=tcp://socket-proxy:2375
+  #   # secrets: # not working
+  #   #   - cloudflare_api_token
+  #   # labels:
+  #   #   # Add hosts specified in rules here to force cf-companion to create the CNAMEs
+  #   #   # Since cf-companion creates CNAMEs based on host rules, this a workaround for non-docker/external apps
+  #   #   - "traefik.http.routers.cf-companion-rtr.rule=Host(`mox.$DOMAINNAME0`) || Host(`pwt.$DOMAINNAME0`) || Host(`webmin.$DOMAINNAME0`) || Host(`shell.$DOMAINNAME0`)"

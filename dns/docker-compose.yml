@@ -1,0 +1,236 @@
+version: "3.9"
+networks:
+  # socket_proxy:
+  #   name: socket_proxy
+  #   external: true
+  docker.0:
+    name: docker.0
+    external: true
+  # docker.22:
+  #   name: docker.22
+  #   external: true
+# volumes:
+#   pihole:
+#     name: pihole
+#     driver: local
+#   dnsmasq.d:
+#     name: dnsmasq.d
+#     driver: local
+
+services:
+  # DNS Server For Adds Blocking only # DNS forward to dnsproxy01 server
+  pihole:
+    image: pihole/pihole:latest
+    container_name: pihole01
+    hostname: pihole
+    restart: always
+    cpus: 0.5
+    mem_limit: 256M
+    # # mem_reservation: 8M
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      docker.0:
+        ipv4_address: 10.10.0.211
+    dns:
+      # - 127.0.0.1
+      - 10.10.0.21
+      - 10.10.0.22
+    ports:
+      - "80:80"
+      - "53:53/tcp"
+      - "53:53/udp"
+    volumes:
+      - $DOCKERDIR/appdata/pihole/data:/etc/pihole
+      - $DOCKERDIR/appdata/pihole/dnsmasq.d:/etc/dnsmasq.d
+      # - pihole.log:/var/log/pihole.log
+    environment:
+      TZ: $TZ
+      ServerIP: 10.10.0.211
+      PIHOLE_DNS_: 10.10.0.212
+      WEBPASSWORD: $PIHOLE_WEBPASSWORD
+      VIRTUAL_HOST: pihole
+      VIRTUAL_PORT: 80
+      PROXY_LOCATION: pihole
+      DNSSEC: "true"
+      DNSMASQ_LISTENING: "all"
+      REV_SERVER: "false"
+      REV_SERVER_DOMAIN: "example.local"
+      REV_SERVER_TARGET: 10.10.0.1
+      REV_SERVER_CIDR: "10.10.0.0/16" ### /16 because I have 11 vlans
+    labels:
+      - "traefik.enable=true"
+      ## HTTP-to-HTTPS Redirect
+      # - "traefik.http.routers.pihole-catchall.entrypoints=http"
+      # - "traefik.http.routers.pihole-catchall.rule=HostRegexp(`pihole.$DOMAINNAME0,{catchall:.*}`)"
+      # - "traefik.http.routers.pihole-catchall.middlewares=redirect-to-https"
+      # - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      ## HTTP Routers Local
+      # - "traefik.http.routers.pihole-local.entrypoints=https"
+      # - "traefik.http.routers.pihole-local.rule=Host(`pihole.$DOMAINNAME`)"
+      # - "traefik.http.routers.pihole-local.priority=300"
+      ## HTTP Routers Private
+      - "traefik.http.routers.pihole-private.entrypoints=https"
+      - "traefik.http.routers.pihole-private.rule=Host(`pihole.$DOMAINNAME0`)"
+      - "traefik.http.routers.pihole-private.priority=200"
+      ## Middlewares
+      # - "traefik.http.routers.pihole-local.middlewares=add-prefix-pihole,error-pages-middleware@docker"
+      - "traefik.http.routers.pihole-private.middlewares=chain-authelia@file,error-pages-middleware@docker,add-prefix-pihole"
+      - "traefik.http.middlewares.add-prefix-pihole.addPrefix.prefix=/admin"
+      ## HTTP Services
+      # - "traefik.http.routers.pihole-local.service=pihole-svc"
+      - "traefik.http.routers.pihole-private.service=pihole-svc"
+      - "traefik.http.services.pihole-svc.loadbalancer.server.port=80"
+      #### I am not using this it didnt workout for me TLS-DNS
+      ### So i switch out to this https://hub.docker.com/r/qmcgaw/dns
+      # ## DNS-over-TLS
+      # - "traefik.tcp.routers.dnsovertls.rule=HostSNI(`pihole.$DOMAINNAME0`)"
+      # - "traefik.tcp.routers.dnsovertls.entrypoints=dnsovertls"
+      # - "traefik.tcp.routers.dnsovertls.tls=true"
+      # - "traefik.tcp.routers.dnsovertls.tls.passthrough=true"
+      # - "traefik.tcp.routers.dnsovertls.tls.certresolver=dns-cloudflare"
+      # - "traefik.tcp.routers.dnsovertls.service=pihole-dns-tls-svc"
+      # - "traefik.http.routers.dnsovertls.middlewares=chain-no-auth@file"
+      # - "traefik.tcp.services.pihole-dns-tls-svc.loadbalancer.server.port=853"
+      # ## Normal DNS coming in on 53 TCP, no TLS
+      # # - "traefik.tcp.routers.dns.rule=HostSNI(`pihole.$DOMAINNAME0`)"
+      # - "traefik.tcp.routers.dns.rule=HostSNI(`*`)"
+      # - "traefik.tcp.routers.dns.entrypoints=dns"
+      # - "traefik.tcp.routers.dns.service=pihole-dns-svc"
+      # ## Recieves traffic from both the TLS and non-TLS traefik routers
+      # - "traefik.tcp.services.pihole-dns-svc.loadbalancer.server.port=53"
+      # ## Normal DNS coming in on 53 UDP
+      # - "traefik.udp.routers.dnsudp.entrypoints=dnsudp"
+      # - "traefik.udp.routers.dnsudp.service=pihole-dns-svc"
+      # - "traefik.udp.services.pihole-dns-svc.loadbalancer.server.port=53"
+
+  ###
+  ### Repo https://hub.docker.com/r/qmcgaw/dns
+  dnsproxy: # DNS over TLS upstream server
+    image: qmcgaw/dns:latest
+    container_name: dnsproxy01
+    hostname: dnsproxy01
+    restart: always
+    cpus: 0.2
+    mem_limit: 256M
+    # # mem_reservation: 8M
+    security_opt:
+      - no-new-privileges:true
+    ports:
+      - 53:53/udp
+    networks:
+      docker.0:
+        ipv4_address: 10.10.0.212 # You can specify a static IP
+    dns:
+      - 127.0.0.1
+      - 10.10.0.212
+      # - 10.10.0.21
+      # - 10.10.0.22
+    environment: #### Comma separated list of DNS-over-TLS providers from [cira family, cira private, cira protected, cleanbrowsing adult, cleanbrowsing family, cleanbrowsing security, cloudflare, cloudflare family, cloudflare security, google, libredns, quad9, quad9 secured, quad9 unsecured, quadrant]
+      - PROVIDERS=cloudflare,google
+      - VERBOSITY=1
+      - VERBOSITY_DETAILS=1
+      - BLOCK_MALICIOUS=off
+      - BLOCK_SURVEILLANCE=off
+      - BLOCK_ADS=off
+      - BLOCK_HOSTNAMES=
+      - BLOCK_IPS=
+      - UNBLOCK=
+      - LISTENINGPORT=53
+      - CACHING=on
+      # - PRIVATE_ADDRESS=10.10.0.0/8, 172.16.0.0/16
+      - CHECK_DNS=on
+      - IPV4=on
+      - IPV6=off
+      - UPDATE_PERIOD=6h
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+  ##Bind DNS Server ## ACting as slave zone for my DNS(Active Directory)
+  bind01:
+    image: sameersbn/bind:latest
+    ## This image is outdate # so launch it update it first form admin page and then commit the comtainer ## then tag it ## save local or push to you pvt repo
+    ## or u can build it
+    ## image: bantybanty/bind:latest ## example tag
+    container_name: bind01
+    hostname: bind01
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    cpus: 1
+    mem_limit: 512M
+    networks:
+      docker.0:
+        ipv4_address: 10.10.0.213
+    dns:
+      - 10.10.0.21
+      - 10.10.0.22
+    ports:
+      - "53:53/udp"
+      - "53:53/tcp"
+      - "10000:10000/tcp" ## https admin page
+    volumes:
+      - $DOCKERDIR/appdata/bind:/data
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+      - "traefik.enable=true"
+      ## HTTP Routers Local
+      # - "traefik.http.routers.bind-local.entrypoints=https"
+      # - "traefik.http.routers.bind-local.rule=Host(`bind01.$DOMAINNAME`)"
+      # - "traefik.http.routers.bind-local.priority=300"
+      ## HTTP Routers Private
+      - "traefik.http.routers.bind-private.entrypoints=https"
+      - "traefik.http.routers.bind-private.rule=Host(`bind01.$DOMAINNAME0`)"
+      - "traefik.http.routers.bind-private.priority=200"
+      ## Middlewares
+      # - "traefik.http.routers.bind-local.middlewares=error-pages-middleware@docker"
+      - "traefik.http.routers.bind-private.middlewares=chain-authelia@file,error-pages-middleware@docker"
+      ## HTTP Services
+      # - "traefik.http.routers.bind-local.service=bind-svc"
+      - "traefik.http.routers.bind-private.service=bind-svc"
+      - "traefik.http.services.bind-svc.loadbalancer.server.port=10000"
+
+  ntp:
+    image: cturra/ntp:latest
+    container_name: "ntp"
+    hostname: ntp
+    cpus: 0.1
+    mem_limit: 32M
+    # # mem_reservation: 8M
+    security_opt:
+      - no-new-privileges:true
+    restart: always
+    networks:
+      docker.0:
+        ipv4_address: 10.10.0.219
+      # docker.22:
+      #   ipv4_address: 10.10.22.219
+    ports:
+      - "123:123/udp"
+    environment:
+      - NTP_SERVERS= 1.in.pool.ntp.org,2.in.pool.ntp.org
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+
+  #### Not Using
+  # Duckdns DDNS
+  # duckdns:
+  #   image: ghcr.io/linuxserver/duckdns
+  #   container_name: duckdns
+  #   hostname: duckdns
+  #   restart: always
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   networks:
+  #     docker.22:
+  #       ipv4_address: 10.10.22.133
+  #   environment:
+  #     - PUID=1000 #optional
+  #     - PGID=1000 #optional
+  #     - TZ=Asia/Kolkata
+  #     - SUBDOMAINS=xyz.duckdns.org,abc.duckdns.org,qwerty.duckdns.org
+  #     - TOKEN=xyz-abc-xyz
+  #     - LOG_FILE=true #optional
+  #   volumes:
+  #     - $DOCKERDIR/appdata/duckdns:/config #optional
+  #     - /etc/localtime:/etc/localtime:ro

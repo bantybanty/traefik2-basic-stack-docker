@@ -1,0 +1,76 @@
+http:
+  middlewares:
+    chain-no-auth:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-secure-headers
+
+    chain-basic-auth:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-secure-headers
+          - middlewares-basic-auth
+
+    chain-oauth:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-secure-headers
+          - middlewares-oauth
+
+    chain-oauth-public:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-secure-headers
+          - middlewares-oauth-public
+
+    chain-authelia:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-secure-headers
+          - middlewares-authelia
+
+    chain-owncloud-local:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - owncloud-middlewares-secure-headers
+          - owncloud-redirect
+
+    chain-owncloud-private:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          # - middlewares-https-redirectscheme
+          - middlewares-authelia
+          - owncloud-middlewares-secure-headers
+          - owncloud-redirect
+
+    chain-owncloud-public:
+      chain:
+        middlewares:
+          - middlewares-rate-limit
+          - middlewares-oauth-public
+          # - middlewares-https-redirectscheme
+          - owncloud-middlewares-secure-headers
+          - owncloud-redirect
+
+    chain-bitwarden-websocket:
+      chain:
+        middlewares:
+          - middlewares-bitwarden-websocket
+
+    chain-vscode-websocket:
+      chain:
+        middlewares:
+          - middlewares-vscode-websocket

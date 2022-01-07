@@ -2,14 +2,16 @@ I using this for my setup(live-production)... but i had to customize according t
 
 please dont just run docker compose up it will fail
 fist rename .env.example to .env
-2nd put you vaules there and
+2nd put you vaules there and then run...
 
 #### Comment out or delete any unused entries
 
 I will later add exact steps with links.
 
 https://www.smarthomebeginner.com/cloudflare-settings-for-traefik-docker/
+
 https://www.smarthomebeginner.com/traefik-2-docker-tutorial/
+
 https://www.smarthomebeginner.com/google-oauth-with-traefik-2-docker/
 
 Thanks to content creators for there active support
@@ -27,6 +29,7 @@ This is a demonstration of how to configure an offline root CA and a surbodinate
 https://www.youtube.com/watch?v=pRy4Il_qjh4&t=79s
 
 Full list of Windows server demo
+
 https://www.youtube.com/playlist?list=PLPbPssOfdt-yxxJGHTej-EnHPFOEg0y_0
 
 for online step -ca
